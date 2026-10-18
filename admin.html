@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>หน้าครัว</title>
+
+<style>
+body{
+  font-family:sans-serif;
+  background:#f5f5f5;
+  margin:0;
+  padding:20px;
+}
+
+h2{
+  text-align:center;
+}
+
+#orders{
+  max-width:700px;
+  margin:auto;
+}
+
+.order{
+  background:white;
+  margin:10px 0;
+  padding:15px;
+  border-radius:12px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);
+  animation:fadeIn .3s ease;
+}
+
+.order h3{
+  margin:0 0 8px;
+}
+
+.order p{
+  margin:0 0 12px;
+  font-size:18px;
+}
+
+button{
+  background:#d62828;
+  color:white;
+  border:none;
+  padding:8px 14px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:.2s;
+}
+
+button:hover{
+  transform:translateY(-2px);
+}
+
+button:active{
+  transform:scale(.95);
+}
+
+.admin-tabs{
+  display: flex;
+  gap: 10px;
+  max-width: 700px;
+  margin: 20px auto;
+  padding: 10px;
+}
+
+.admin-tabs button{
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #2a9d8f;
+  border-radius: 12px;
+  background: white;
+  color: #176b62;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.admin-tabs button.active{
+  background: #2a9d8f;
+  color: white;
+}
+
+#kitchenPage,
+#receiptPage {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0 12px 30px;
+}
+
+#tableSelect {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0 18px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+}
+
+.receipt-card {
+  background: white;
+  padding: 16px;
+  margin: 12px 0;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+}
+
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.receipt-total {
+  font-size: 20px;
+  font-weight: bold;
+  text-align: right;
+  margin-top: 16px;
+}
+
+.pay-button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 14px;
+  background: #16803c;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+@keyframes fadeIn{
+  from{
+    opacity:0;
+    transform:translateY(10px);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
+</style>
+</head>
+<body>
+
+<h2>📋 ออเดอร์</h2>
+
+<nav class="admin-tabs">
+  <button id="kitchenTab" class="active"
+          onclick="switchPage('kitchen')">
+     หน้าครัว
+  </button>
+
+  <button id="receiptTab"
+          onclick="switchPage('receipt')">
+     หน้าใบเสร็จ
+  </button>
+</nav>
+
+<section id="kitchenPage">
+  <h2>🍳 รายการที่ต้องทำ</h2>
+  <div id="orders">กำลังโหลด...</div>
+</section>
+
+<section id="receiptPage" style="display:none;">
+  <h2>🧾 ใบเสร็จ</h2>
+
+  <label for="tableSelect">เลือกโต๊ะ:</label>
+  <select id="tableSelect" onchange="renderReceipt()">
+    <option value="">กำลังโหลดโต๊ะ...</option>
+  </select>
+
+  <div id="receiptOrders">
+    เลือกโต๊ะเพื่อดูรายการ
+  </div>
+</section>
+
+<script>
+const URL = "https://script.google.com/macros/s/AKfycbzy4d4Xd9qrLGsrzTRd1mioRfv4U42kmTkPK_8LOCniaUAdoGiYfUWcDPBTCBFP6pAk/exec";
+let isLoading = false;
+let finishedOrders = new Set();
+let lastCount = -1;
+
+
+let currentPage = "kitchen";
+let receiptData = [];
+
+function switchPage(page) {
+  currentPage = page;
+
+  document.getElementById("kitchenPage").style.display =
+    page === "kitchen" ? "block" : "none";
+
+  document.getElementById("receiptPage").style.display =
+    page === "receipt" ? "block" : "none";
+
+  document.getElementById("kitchenTab").classList.toggle(
+    "active", page === "kitchen"
+  );
+
+  document.getElementById("receiptTab").classList.toggle(
+    "active", page === "receipt"
+  );
+
+  loadOrders();
+}
+
+
+
+function loadOrders() {
+  if (isLoading) return;
+
+  isLoading = true;
+
+  const oldScript = document.getElementById("jsonp");
+  if (oldScript) oldScript.remove();
+
+  const script = document.createElement("script");
+  script.id = "jsonp";
+
+  const view = currentPage === "kitchen"
+    ? "kitchen"
+    : "receipt";
+
+  script.src = URL
+    + "?view=" + view
+    + "&callback=showData"
+    + "&time=" + Date.now();
+
+  script.onerror = function () {
+    isLoading = false;
+
+    if (currentPage === "kitchen") {
+      document.getElementById("orders").innerHTML =
+        "<p>โหลดออเดอร์ไม่สำเร็จ กรุณาลองใหม่</p>";
+    } else {
+      document.getElementById("receiptOrders").innerHTML =
+        "<p>โหลดใบเสร็จไม่สำเร็จ กรุณาลองใหม่</p>";
+    }
+  };
+
+  document.body.appendChild(script);
+}
+
+
+
+function showData(data) {
+  isLoading = false;
+  data = Array.isArray(data) ? data : [];
+
+  if (currentPage === "kitchen") {
+    if (lastCount !== -1 && data.length > lastCount) {
+      new Audio(
+        "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"
+      ).play().catch(() => {});
+    }
+
+    lastCount = data.length;
+
+    let html = "";
+
+    if (data.length === 0) {
+      html = "<p style='text-align:center;'>ยังไม่มีออเดอร์</p>";
+    } else {
+      data.forEach(row => {
+        if (finishedOrders.has(row.row)) return;
+
+        const orderTime = new Date(row.time).toLocaleTimeString(
+          "th-TH",
+          { hour: "2-digit", minute: "2-digit" }
+        );
+
+        html += `
+          <div class="order" data-row="${row.row}">
+            <h3>🍽️ โต๊ะ ${row.table}</h3>
+            <small>⏰ เวลา ${orderTime}</small>
+            <p>${row.item} x ${row.qty}</p>
+            <button onclick="finishOrder(${row.row})">
+              เสร็จแล้ว
+            </button>
+          </div>
+        `;
+      });
+
+      if (html === "") {
+        html = "<p style='text-align:center;'>ยังไม่มีออเดอร์</p>";
+      }
+    }
+
+    const box = document.getElementById("orders");
+    if (box.innerHTML !== html) box.innerHTML = html;
+
+  } else {
+    receiptData = data;
+    updateTableOptions();
+    renderReceipt();
+  }
+}
+
+
+function updateTableOptions() {
+  const select = document.getElementById("tableSelect");
+  const previousTable = select.value;
+
+  const tables = [...new Set(
+    receiptData.map(row => String(row.table))
+  )].sort((a, b) =>
+    a.localeCompare(b, "th", { numeric: true })
+  );
+
+  select.innerHTML = "";
+
+  if (tables.length === 0) {
+    select.innerHTML = '<option value="">ไม่มีรายการค้างชำระ</option>';
+    return;
+  }
+
+  select.innerHTML =
+    '<option value="">-- เลือกโต๊ะ --</option>';
+
+  tables.forEach(table => {
+    const option = document.createElement("option");
+    option.value = table;
+    option.textContent = "โต๊ะ " + table;
+    select.appendChild(option);
+  });
+
+  if (tables.includes(previousTable)) {
+    select.value = previousTable;
+  } else {
+    select.value = tables[0];
+  }
+}
+
+
+function renderReceipt() {
+  const table = document.getElementById("tableSelect").value;
+  const box = document.getElementById("receiptOrders");
+
+  if (!table) {
+    box.innerHTML = "<p>ไม่มีรายการค้างชำระ</p>";
+    return;
+  }
+
+  const orders = receiptData.filter(
+    row => String(row.table) === table
+  );
+
+  if (orders.length === 0) {
+    box.innerHTML = "<p>โต๊ะนี้ไม่มีรายการค้างชำระ</p>";
+    return;
+  }
+
+  let total = 0;
+  let hasMissingPrice = false;
+  let html = `
+    <div class="receipt-card">
+      <h3>ใบเสร็จชั่วคราว — โต๊ะ ${table}</h3>
+  `;
+
+  orders.forEach(row => {
+    const qty = Number(row.qty) || 0;
+    const price = row.price === null || row.price === ""
+      ? null
+      : Number(row.price);
+
+    let subtotalText = "ไม่มีข้อมูลราคา";
+
+    if (price !== null && Number.isFinite(price)) {
+      const subtotal = price * qty;
+      total += subtotal;
+      subtotalText = subtotal.toLocaleString("th-TH") + " บาท";
+    } else {
+      hasMissingPrice = true;
+    }
+
+    html += `
+      <div class="receipt-row">
+        <div>
+          <div>${row.item}</div>
+          <small>${qty} ชิ้น</small>
+        </div>
+        <div>${subtotalText}</div>
+      </div>
+    `;
+  });
+
+  html += `
+      <div class="receipt-total">
+        ${hasMissingPrice
+          ? "ยอดรวมยังไม่ครบ"
+          : "รวม " + total.toLocaleString("th-TH") + " บาท"}
+      </div>
+  `;
+
+  if (hasMissingPrice) {
+    html += `
+      <p style="color:#b45309;">
+        มีรายการที่ยังไม่มีราคา กรุณาตรวจสอบข้อมูลก่อนรับชำระ
+      </p>
+    `;
+  } else {
+    html += `
+      <button class="pay-button"
+              onclick="markTablePaid('${table}')">
+        รับชำระเงินแล้ว
+      </button>
+    `;
+  }
+
+  html += "</div>";
+  box.innerHTML = html;
+}
+
+
+function markTablePaid(table) {
+  const confirmed = confirm(
+    "ยืนยันว่ารับชำระเงินจากโต๊ะ " + table + " แล้วใช่ไหม?"
+  );
+
+  if (!confirmed) return;
+
+  fetch(URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "payTable",
+      table: table
+    })
+  })
+  .then(response => response.text())
+  .then(result => {
+    if (result.trim() !== "paid") {
+      throw new Error("อัปเดตสถานะไม่สำเร็จ");
+    }
+
+    alert("บันทึกการชำระเงินแล้ว");
+    loadOrders();
+  })
+  .catch(error => {
+    alert("ไม่สามารถบันทึกการชำระเงินได้ กรุณาตรวจสอบการเชื่อมต่อ");
+    console.error(error);
+  });
+}
+
+
+function finishOrder(rowNumber){
+  finishedOrders.add(rowNumber);
+
+  const card = document.querySelector(`[data-row="${rowNumber}"]`);
+  if(card){
+    card.style.opacity = "0";
+    card.style.transform = "translateX(50px)";
+    card.style.transition = ".25s";
+
+    setTimeout(()=>{
+      card.remove();
+    },250);
+  }
+
+  
+fetch(URL, {
+  method: "POST",
+  body: JSON.stringify({
+    action: "complete",
+    row: rowNumber
+  })
+})
+.then(res => res.text())
+.then(() => {
+  setTimeout(loadOrders, 500);
+})
+.catch(error => {
+  console.error(error);
+  alert("อัปเดตสถานะไม่สำเร็จ กรุณาลองใหม่");
+});
+
+}
+
+setInterval(loadOrders,2000);
+loadOrders();
+</script>
+
+</body>
+</html>
